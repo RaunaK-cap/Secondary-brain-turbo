@@ -2,10 +2,9 @@ import { prisma } from "db/db"
 import { Router } from "express"
 import z from "zod"
 import jwt  from "jsonwebtoken"
-import { password } from "bun"
 export const user = Router()
 
-const JWT_SECRET = "lksnkgnkjsngknskgnksn"
+
 
 
 
@@ -92,7 +91,7 @@ user.post("/login" , async (req,res)=>{
         })
     }
 
-    const token =  jwt.sign({ id: existinguser?.id}, JWT_SECRET )
+    const token =  jwt.sign({ id: existinguser?.id}, process.env.JWT_SECRET! )
 
     res.status(200).json({
             message:"successfully login" , 
