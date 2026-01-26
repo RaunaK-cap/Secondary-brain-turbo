@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ArrowRight, Brain, CheckCircle2, Code2, GraduationCap, Lightbulb, Link2, ListTodo, Menu, Moon, Search, Sparkles, Sun, Zap, BookMarkedIcon as BookmarkedIcon } from 'lucide-react'
+import { redirect, useRouter } from 'next/navigation'
 
 // Hook for scroll animations
 function useScrollAnimation() {
@@ -121,6 +122,7 @@ function Header() {
             </Button>
             <Button 
             className="bg-gradient-to-r from-accent to-accent-alt text-accent-foreground transition-all duration-300 ease-out hover:shadow-lg hover:shadow-accent/30"
+            onClick={()=> redirect("/dashboard")}
             >
 
               Get Started Free
@@ -197,6 +199,7 @@ function Hero() {
             <Button
               size="lg"
               className="gap-2 bg-gradient-to-r from-accent to-accent-alt text-accent-foreground transition-all duration-300 ease-out hover:shadow-lg hover:shadow-accent/30 hover:scale-105 active:scale-95"
+            onClick={()=> redirect("/dashboard")}
             >
               Start Free Trial
               <ArrowRight className="h-4 w-4 transition-all duration-300 ease-out group-hover:translate-x-1" />
