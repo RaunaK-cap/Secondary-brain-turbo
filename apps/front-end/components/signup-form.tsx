@@ -14,8 +14,10 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import axios from "axios"
+import { api } from "@/lib/api"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import axios from "axios"
 
 export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
 
@@ -23,12 +25,13 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   const [ lastname , setlastname] = useState("")
   const [ password , setpassword ] = useState("")
   const [ username , setusername] = useState("")
+  const router = useRouter()
 
 
   async function handlesubmit(e:React.FormEvent){
     e.preventDefault()
       try {
-        const responses = await axios.post("http://localhost:4000/login/v1/signup" , {
+        const responses = await api.post("/login/v1/signup" , {
             firstname:firstname,
             lastname:lastname,
             username:username,
@@ -37,13 +40,24 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
 
         console.log(responses)
         alert("Signup successful!")
-      } catch (error: any) {
+        router.push("/login")
+      } catch (error: unknown) {
         console.error(error)
-        if (error.response) {
-          alert(`Error: ${error.response.data.message || 'Something went wrong'}`)
-        } else {
-          alert("Network error or server not reachable")
+        if (axios.isAxiosError(error)) {
+          const data = error.response?.data as unknown
+          const message =
+            typeof data === "object" &&
+            data !== null &&
+            "message" in data &&
+            typeof (data as { message?: unknown }).message === "string"
+              ? (data as { message: string }).message
+              : "Something went wrong"
+
+          alert(`Error: ${message}`)
+          return
         }
+
+        alert("Network error or server not reachable")
       }
 
 

@@ -1,8 +1,6 @@
 'use client'
 
-import React from "react"
-
-import { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from "react"
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -13,16 +11,18 @@ import {
   Trash2,
   ExternalLink,
   X,
-  Tag,
-  FileText,
+  Pencil,
+  LogOut,
 } from 'lucide-react'
-import { redirect } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { api } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
+import axios from "axios"
 
 interface Link {
-  id: string
+  id: number
   url: string
   title: string
-  notes: string
   category: string
   createdAt: string
 }
@@ -43,29 +43,16 @@ const DEFAULT_CATEGORIES: Category[] = [
 ]
 
 function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    const isDarkMode = document.documentElement.classList.contains('dark')
-    setIsDark(isDarkMode)
-  }, [])
-
   const toggleTheme = () => {
     const root = document.documentElement
     if (root.classList.contains('dark')) {
       root.classList.remove('dark')
       localStorage.setItem('theme', 'light')
-      setIsDark(false)
     } else {
       root.classList.add('dark')
       localStorage.setItem('theme', 'dark')
-      setIsDark(true)
     }
   }
-
-  if (!mounted) return null
 
   return (
     <Button
@@ -75,42 +62,41 @@ function ThemeToggle() {
       className="transition-all duration-300 ease-out relative h-10 w-10"
       aria-label="Toggle theme"
     >
-      <div className="relative h-5 w-5">
-        <Sun className="absolute h-5 w-5 rotate-0 scale-100 transition-all duration-300 dark:-rotate-90 dark:scale-0" />
-        <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all duration-300 dark:rotate-0 dark:scale-100" />
-      </div>
+      <Sun className="h-5 w-5 block dark:hidden" />
+      <Moon className="h-5 w-5 hidden dark:block" />
     </Button>
   )
 }
 
-function AddLinkModal({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: () => void; onAdd: (link: Omit<Link, 'id' | 'createdAt'>) => void }) {
-  const [formData, setFormData] = useState({
-    url: '',
-    title: '',
-    notes: '',
-    category: '1',
-  })
+function UpsertLinkModal({
+  onClose,
+  initial,
+  onSubmit,
+  submitting,
+}: {
+  onClose: () => void
+  initial?: Link | null
+  onSubmit: (values: { url: string; title: string; category: string }) => void
+  submitting: boolean
+}) {
+  const [formData, setFormData] = useState(() => ({
+    url: initial?.url ?? "",
+    title: initial?.title ?? "",
+    category: initial?.category ?? "1",
+  }))
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (formData.url && formData.title) {
-      onAdd({
-        ...formData,
-      })
-      setFormData({ url: '', title: '', notes: '', category: '1' })
-      onClose()
+      onSubmit(formData)
     }
   }
-
-  console.log(formData) //all data 
-
-  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
       <Card className="w-full max-w-md border-border bg-card p-6 animate-scale-in">
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-foreground">Add New Link</h2>
+          <h2 className="text-2xl font-bold text-foreground">{initial ? "Edit Link" : "Add New Link"}</h2>
           <button onClick={onClose} className="transition-all duration-300 hover:scale-110">
             <X className="h-6 w-6" />
           </button>
@@ -159,26 +145,14 @@ function AddLinkModal({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: ()
             </select>
           </div>
 
-          {/* Notes Input */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Add your notes about this link..."
-              rows={4}
-              className="w-full rounded-lg border border-border bg-background px-4 py-2 text-foreground placeholder:text-muted-foreground transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-accent resize-none"
-            />
-          </div>
-
           {/* Buttons */}
           <div className="flex gap-3 pt-4">
-            <Button variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+            <Button variant="outline" onClick={onClose} className="flex-1 bg-transparent" disabled={submitting}>
               Cancel
             </Button>
             <Button 
-            type="submit" className="flex-1 bg-gradient-to-r from-accent to-accent-alt text-accent-foreground hover:shadow-lg hover:shadow-accent/30">
-              Add Link
+            type="submit" className="flex-1 bg-linear-to-r from-accent to-accent-alt text-accent-foreground hover:shadow-lg hover:shadow-accent/30" disabled={submitting}>
+              {initial ? "Save" : "Add Link"}
             </Button>
           </div>
         </form>
@@ -187,7 +161,15 @@ function AddLinkModal({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: ()
   )
 }
 
-function LinkCard({ link, onDelete }: { link: Link; onDelete: (id: string) => void }) {
+function LinkCard({
+  link,
+  onDelete,
+  onEdit,
+}: {
+  link: Link
+  onDelete: (id: number) => void
+  onEdit: (link: Link) => void
+}) {
   const category = DEFAULT_CATEGORIES.find((c) => c.id === link.category)
 
   const getDomain = (url: string) => {
@@ -199,11 +181,11 @@ function LinkCard({ link, onDelete }: { link: Link; onDelete: (id: string) => vo
   }
 
   return (
-    <Card className="group overflow-hidden border-border bg-gradient-to-br from-card to-card/50 p-6 transition-all duration-300 hover:border-accent/50 hover:shadow-lg hover:shadow-accent/10 hover:scale-105 active:scale-100">
+    <Card className="group overflow-hidden border-border bg-linear-to-br from-card to-card/50 p-6 transition-all duration-300 hover:border-accent/50 hover:shadow-lg hover:shadow-accent/10 hover:scale-105 active:scale-100">
       {/* Header */}
       <div className="mb-4 flex items-start justify-between">
         <div className="flex-1">
-          <div className={`mb-2 inline-block bg-gradient-to-r ${category?.color} rounded-full px-3 py-1`}>
+          <div className={`mb-2 inline-block bg-linear-to-r ${category?.color} rounded-full px-3 py-1`}>
             <span className="text-xs font-medium text-white">{category?.name}</span>
           </div>
           <h3 className="text-lg font-semibold text-foreground line-clamp-2">{link.title}</h3>
@@ -217,21 +199,23 @@ function LinkCard({ link, onDelete }: { link: Link; onDelete: (id: string) => vo
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
-        <button
-          onClick={() => onDelete(link.id)}
-          className="transition-all duration-300 hover:scale-110 hover:text-destructive text-muted-foreground"
-        >
-          <Trash2 className="h-5 w-5" />
-        </button>
-      </div>
-
-      {/* Notes */}
-      {link.notes && (
-        <div className="mb-4 flex gap-3">
-          <FileText className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
-          <p className="text-sm text-muted-foreground line-clamp-3">{link.notes}</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onEdit(link)}
+            className="transition-all duration-300 hover:scale-110 hover:text-accent text-muted-foreground"
+            aria-label="Edit link"
+          >
+            <Pencil className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => onDelete(link.id)}
+            className="transition-all duration-300 hover:scale-110 hover:text-destructive text-muted-foreground"
+            aria-label="Delete link"
+          >
+            <Trash2 className="h-5 w-5" />
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Footer */}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -250,15 +234,16 @@ function LinkCard({ link, onDelete }: { link: Link; onDelete: (id: string) => vo
 }
 
 function Sidebar({ categories, selectedCategory, onSelectCategory }: { categories: Category[]; selectedCategory: string | null; onSelectCategory: (id: string | null) => void }) {
+  const router = useRouter()
   return (
     <aside className="h-screen w-64 border-r border-border bg-card/50 p-6 overflow-y-auto hidden lg:block">
       {/* Logo */}
       <div className="mb-8 flex items-center gap-3 transition-all duration-300 hover:scale-105">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent-alt">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-linear-to-br from-accent to-accent-alt">
           <Brain className="h-6 w-6 text-accent-foreground" />
         </div>
         <span className="text-lg font-bold text-foreground" 
-        onClick={()=> redirect("/")}
+        onClick={() => router.push("/")}
         >Second Brain</span>
       </div>
 
@@ -285,7 +270,7 @@ function Sidebar({ categories, selectedCategory, onSelectCategory }: { categorie
                 : 'text-foreground hover:bg-secondary'
             }`}
           >
-            <div className={`h-2 w-2 rounded-full bg-gradient-to-r ${category.color}`} />
+            <div className={`h-2 w-2 rounded-full bg-linear-to-r ${category.color}`} />
             {category.name}
           </button>
         ))}
@@ -298,44 +283,166 @@ export default function Dashboard() {
   const [links, setLinks] = useState<Link[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const [editingLink, setEditingLink] = useState<Link | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    setMounted(true)
-    const saved = localStorage.getItem('secondBrainLinks')
-    if (saved) {
-      try {
-        setLinks(JSON.parse(saved))
-      } catch (e) {
-        console.error('Failed to load links:', e)
+  const router = useRouter()
+  const { token, logout, isReady } = useAuth()
+
+  const filteredLinks = useMemo(
+    () => (selectedCategory ? links.filter((link) => link.category === selectedCategory) : links),
+    [links, selectedCategory]
+  )
+
+  async function loadLinks() {
+    setLoading(true)
+    try {
+      const res = await api.get("/content/v2/getdata")
+      const result = (res.data?.result ?? []) as Array<{
+        id: number
+        Link: string
+        title: string
+        type: string
+        dataandtime: string
+      }>
+
+      setLinks(
+        result.map((r) => ({
+          id: r.id,
+          url: r.Link,
+          title: r.title,
+          category: r.type,
+          createdAt: r.dataandtime,
+        }))
+      )
+    } catch (error: unknown) {
+      console.error(error)
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        logout()
+        router.replace("/login")
+        return
       }
-    }
-  }, [])
 
-  // Save to localStorage whenever links change
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as unknown
+        const message =
+          typeof data === "object" &&
+          data !== null &&
+          "message" in data &&
+          typeof (data as { message?: unknown }).message === "string"
+            ? (data as { message: string }).message
+            : "Failed to load links"
+        alert(message)
+        return
+      }
+
+      alert("Network error or server not reachable")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('secondBrainLinks', JSON.stringify(links))
+    if (!isReady) return
+    if (!token) {
+      router.replace("/login")
+      return
     }
-  }, [links, mounted])
+    loadLinks()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, token])
 
-  const handleAddLink = (newLink: Omit<Link, 'id' | 'createdAt'>) => {
-    const link: Link = {
-      ...newLink,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
+  async function handleUpsert(values: { url: string; title: string; category: string }) {
+    setSubmitting(true)
+    try {
+      if (editingLink) {
+        await api.put(`/content/v2/update/${editingLink.id}`, {
+          title: values.title,
+          link: values.url,
+          type: values.category,
+        })
+      } else {
+        await api.post("/content/v2/adddata", {
+          title: values.title,
+          link: values.url,
+          type: values.category,
+        })
+      }
+
+      setIsModalOpen(false)
+      setEditingLink(null)
+      await loadLinks()
+    } catch (error: unknown) {
+      console.error(error)
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        logout()
+        router.replace("/login")
+        return
+      }
+
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as unknown
+        const message =
+          typeof data === "object" &&
+          data !== null &&
+          "message" in data &&
+          typeof (data as { message?: unknown }).message === "string"
+            ? (data as { message: string }).message
+            : "Request failed"
+        alert(message)
+        return
+      }
+
+      alert("Network error or server not reachable")
+    } finally {
+      setSubmitting(false)
     }
-    setLinks([link, ...links])
   }
 
-  const handleDeleteLink = (id: string) => {
-    setLinks(links.filter((link) => link.id !== id))
+  async function handleDeleteLink(id: number) {
+    setSubmitting(true)
+    try {
+      await api.delete(`/content/v2/deletedata/${id}`)
+      setLinks((prev) => prev.filter((l) => l.id !== id))
+    } catch (error: unknown) {
+      console.error(error)
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        logout()
+        router.replace("/login")
+        return
+      }
+
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as unknown
+        const message =
+          typeof data === "object" &&
+          data !== null &&
+          "message" in data &&
+          typeof (data as { message?: unknown }).message === "string"
+            ? (data as { message: string }).message
+            : "Delete failed"
+        alert(message)
+        return
+      }
+
+      alert("Network error or server not reachable")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const filteredLinks = selectedCategory ? links.filter((link) => link.category === selectedCategory) : links
+  function handleEdit(link: Link) {
+    setEditingLink(link)
+    setIsModalOpen(true)
+  }
 
-  if (!mounted) return null
+  function handleAddClick() {
+    setEditingLink(null)
+    setIsModalOpen(true)
+  }
+
+  if (!isReady) return null
 
   return (
     <div className="flex h-screen bg-background">
@@ -359,8 +466,21 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <ThemeToggle />
               <Button
-                onClick={() => setIsModalOpen(true)}
-                className="gap-2 bg-gradient-to-r from-accent to-accent-alt text-accent-foreground hover:shadow-lg hover:shadow-accent/30 transition-all duration-300 hover:scale-105 active:scale-95"
+                variant="outline"
+                onClick={() => {
+                  logout()
+                  router.replace("/login")
+                }}
+                className="gap-2 bg-transparent"
+                disabled={submitting}
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </Button>
+              <Button
+                onClick={handleAddClick}
+                className="gap-2 bg-linear-to-r from-accent to-accent-alt text-accent-foreground hover:shadow-lg hover:shadow-accent/30 transition-all duration-300 hover:scale-105 active:scale-95"
+                disabled={submitting}
               >
                 <Plus className="h-5 w-5" />
                 <span className="hidden sm:inline">Add Link</span>
@@ -372,15 +492,22 @@ export default function Dashboard() {
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 sm:p-8">
-            {filteredLinks.length === 0 ? (
+            {loading ? (
+              <div className="flex h-96 items-center justify-center">
+                <div className="text-center">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              </div>
+            ) : filteredLinks.length === 0 ? (
               <div className="flex h-96 items-center justify-center">
                 <div className="text-center">
                   <Brain className="mx-auto h-16 w-16 text-muted-foreground/30 mb-4" />
                   <h3 className="text-xl font-semibold text-foreground mb-2">No links yet</h3>
                   <p className="text-muted-foreground mb-6">Start adding links to build your second brain</p>
                   <Button
-                    onClick={() => setIsModalOpen(true)}
-                    className="gap-2 bg-gradient-to-r from-accent to-accent-alt text-accent-foreground"
+                    onClick={handleAddClick}
+                    className="gap-2 bg-linear-to-r from-accent to-accent-alt text-accent-foreground"
+                    disabled={submitting}
                   >
                     <Plus className="h-4 w-4" />
                     Add Your First Link
@@ -395,7 +522,7 @@ export default function Dashboard() {
                     className="animate-slide-up"
                     style={{ animationDelay: `${index * 0.05}s` }}
                   >
-                    <LinkCard link={link} onDelete={handleDeleteLink} />
+                    <LinkCard link={link} onDelete={handleDeleteLink} onEdit={handleEdit} />
                   </div>
                 ))}
               </div>
@@ -404,8 +531,19 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Add Link Modal */}
-      <AddLinkModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={handleAddLink} />
+      {/* Add/Edit Link Modal */}
+      {isModalOpen && (
+        <UpsertLinkModal
+          onClose={() => {
+            if (submitting) return
+            setIsModalOpen(false)
+            setEditingLink(null)
+          }}
+          initial={editingLink}
+          onSubmit={handleUpsert}
+          submitting={submitting}
+        />
+      )}
     </div>
   )
 }

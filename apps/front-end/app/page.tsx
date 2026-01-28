@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ArrowRight, Brain, CheckCircle2, Code2, GraduationCap, Lightbulb, Link2, ListTodo, Menu, Moon, Search, Sparkles, Sun, Zap, BookMarkedIcon as BookmarkedIcon } from 'lucide-react'
-import { redirect, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 // Hook for scroll animations
 function useScrollAnimation() {
@@ -36,29 +36,16 @@ function useScrollAnimation() {
 
 // Theme Toggle Component
 function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false)
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    const isDarkMode = document.documentElement.classList.contains('dark')
-    setIsDark(isDarkMode)
-  }, [])
-
   const toggleTheme = () => {
     const root = document.documentElement
     if (root.classList.contains('dark')) {
       root.classList.remove('dark')
       localStorage.setItem('theme', 'light')
-      setIsDark(false)
     } else {
       root.classList.add('dark')
       localStorage.setItem('theme', 'dark')
-      setIsDark(true)
     }
   }
-
-  if (!mounted) return null
 
   return (
     <Button
@@ -68,16 +55,8 @@ function ThemeToggle() {
       className="transition-all duration-300 ease-out relative h-10 w-10"
       aria-label="Toggle theme"
     >
-      <div className="relative h-5 w-5">
-        <Sun
-          className="absolute h-5 w-5 rotate-0 scale-100 transition-all duration-300 dark:-rotate-90 dark:scale-0"
-          strokeWidth={2}
-        />
-        <Moon
-          className="absolute h-5 w-5 rotate-90 scale-0 transition-all duration-300 dark:rotate-0 dark:scale-100"
-          strokeWidth={2}
-        />
-      </div>
+      <Sun className="h-5 w-5 block dark:hidden" strokeWidth={2} />
+      <Moon className="h-5 w-5 hidden dark:block" strokeWidth={2} />
     </Button>
   )
 }
@@ -85,6 +64,7 @@ function ThemeToggle() {
 // Header Component
 function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const router = useRouter()
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md transition-all duration-300 ease-out">
@@ -117,12 +97,13 @@ function Header() {
             <Button
               variant="ghost"
               className="transition-all duration-300 ease-out hover:bg-secondary"
+              onClick={() => router.push('/login')}
             >
               Sign In
             </Button>
             <Button 
             className="bg-gradient-to-r from-accent to-accent-alt text-accent-foreground transition-all duration-300 ease-out hover:shadow-lg hover:shadow-accent/30"
-            onClick={()=> redirect("/dashboard")}
+            onClick={() => router.push("/dashboard")}
             >
 
               Get Started Free
@@ -142,11 +123,8 @@ function Header() {
 
 // Hero Section
 function Hero() {
-  const [isVisible, setIsVisible] = useState(false)
-
-  useEffect(() => {
-    setIsVisible(true)
-  }, [])
+  const isVisible = true
+  const router = useRouter()
 
   return (
     <section className="relative overflow-hidden border-b border-border bg-background py-20 sm:py-32">
@@ -185,7 +163,7 @@ function Hero() {
             }`}
             style={{ animationDelay: isVisible ? '0.2s' : undefined }}
           >
-            Capture what you're learning, building, and doing. Organize with links, todos, and insights. Your second brain,
+            Capture what you&apos;re learning, building, and doing. Organize with links, todos, and insights. Your second brain,
             always with you.
           </p>
 
@@ -199,7 +177,7 @@ function Hero() {
             <Button
               size="lg"
               className="gap-2 bg-gradient-to-r from-accent to-accent-alt text-accent-foreground transition-all duration-300 ease-out hover:shadow-lg hover:shadow-accent/30 hover:scale-105 active:scale-95"
-            onClick={()=> redirect("/dashboard")}
+            onClick={() => router.push("/dashboard")}
             >
               Start Free Trial
               <ArrowRight className="h-4 w-4 transition-all duration-300 ease-out group-hover:translate-x-1" />
@@ -450,7 +428,7 @@ function UseCases() {
             Built for Every Role
           </h2>
           <p className="text-lg text-muted-foreground">
-            Whether you're building products, learning new skills, or creating content, Second Brain adapts to your workflow.
+            Whether you&apos;re building products, learning new skills, or creating content, Second Brain adapts to your workflow.
           </p>
         </div>
 
