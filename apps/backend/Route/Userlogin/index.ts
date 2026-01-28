@@ -5,9 +5,6 @@ import jwt  from "jsonwebtoken"
 export const user = Router()
 
 
-
-
-
 user.post("/signup" , async(req, res)=>{
     
    const signupschema = z.object({
@@ -86,12 +83,13 @@ user.post("/login" , async (req,res)=>{
     })
 
     if(!existinguser){
-        res.json({
+        res.status(401).json({
             message:"User doesn't exist please sign up first "
         })
+        return;
     }
 
-    const token =  jwt.sign({ id: existinguser?.id}, process.env.JWT_SECRET! )
+    const token =  jwt.sign({ id: existinguser.id }, process.env.JWT_SECRET! )
 
     res.status(200).json({
             message:"successfully login" , 

@@ -15,7 +15,7 @@ content.post("/adddata" , middlware ,  async(req,res)=>{
     })
 
     if(!contentschema.safeParse(req.body).success){
-        res.json({
+        return res.status(400).json({
             message:"please enter correct crendentials "
         })
     }
@@ -86,13 +86,18 @@ content.put("/update/:id" , middlware , async(req, res)=>{
     })
 
     if(!contentschema.safeParse(req.body).success){
-        res.json({
+        return res.status(400).json({
             message:"please enter correct crendentials "
         })
     }
     //@ts-ignore
     const userid = req.userid
-    const id : any = req.params.id
+    const id = Number(req.params.id)
+    if (Number.isNaN(id)) {
+        return res.status(400).json({
+            message: "invalid id"
+        })
+    }
 
     const { title , link, type } : any = contentschema.safeParse(req.body).data
 
