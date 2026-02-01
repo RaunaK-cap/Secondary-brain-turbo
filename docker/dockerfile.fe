@@ -14,7 +14,7 @@ RUN bun install
 RUN bun run build
 
 
-EXPOSE 4000
+EXPOSE 3000
 
 CMD [ "bun" ,"run" , "start:frontend"]
 

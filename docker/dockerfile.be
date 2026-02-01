@@ -2,6 +2,7 @@ FROM oven/bun:1
 
 WORKDIR /src/app
 
+
 COPY ./packages ./packages
 COPY ./bun.lock  ./bun.lock
 
@@ -14,7 +15,7 @@ RUN bun install
 
 RUN bun run db:generate
 
-EXPOSE 4000
+EXPOSE 4000 
 
 CMD [ "bun" ,"run" , "start:backend"]
 

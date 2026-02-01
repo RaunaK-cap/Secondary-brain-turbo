@@ -1,0 +1,9 @@
+services:
+ backend:
+  build:
+   context: .
+   dockerfile: docker/dockerfile.be
+  ports:   
+   - "4000:4000"
+  environment:
+   - DATABASE_URL
