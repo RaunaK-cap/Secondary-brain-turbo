@@ -14,6 +14,7 @@ COPY ./apps/backend  ./apps/backend
 RUN bun install
 
 RUN bun run db:generate
+RUN bun run db:migrate
 
 EXPOSE 4000 
 
