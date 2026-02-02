@@ -1,9 +1,40 @@
 services:
- backend:
-  build:
-   context: .
-   dockerfile: docker/dockerfile.be
-  ports:   
-   - "4000:4000"
-  environment:
-   - DATABASE_URL
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=12345
+      - POSTGRES_DB=pratice01
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./
+      dockerfile: docker/dockerfile.be
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:12345@postgres:5432/pratice01
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  front-end:
+    build:
+      context: ./
+      dockerfile: docker/dockerfile.fe
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
