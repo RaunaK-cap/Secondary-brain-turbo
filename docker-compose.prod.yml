@@ -22,7 +22,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-   front-end:
+
+  front-end:
     image: ${FRONTEND_IMAGE}
     ports:
       - "3000:3000"
